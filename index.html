@@ -12,6 +12,9 @@
   - Los correos no se envían: quedan registrados en Panel > Correos para revisar su contenido.
   - La sección "Datos" del script concentra las operaciones que luego pasan a Firebase.
   - Logo institucional: agregar el archivo oficial dentro de .marca (no se incluye aquí).
+  - Acceso al panel (solo prototipo): se pide una clave; en el código se guarda su huella SHA-256, no la clave.
+    Para cambiarla, abra la página, abra la consola del navegador y ejecute huellaPanel('nueva clave');
+    copie el resultado en CONFIG.panelHuella. En el sistema definitivo se ingresa con un correo autorizado.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -218,7 +221,7 @@ select.input option{background:var(--superficie);color:var(--texto)}
 @media (min-width:640px){.ticket{grid-template-columns:280px minmax(0,1fr)}}
 .ticket-qr{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 24px;border-bottom:1px dashed var(--borde);text-align:center}
 @media (min-width:640px){.ticket-qr{border-bottom:0;border-right:1px dashed var(--borde)}}
-.qr{display:flex;align-items:center;justify-content:center;width:204px;height:204px;padding:14px;border-radius:22px;background:var(--crema)}
+.qr{display:flex;align-items:center;justify-content:center;width:212px;height:212px;padding:18px;border-radius:22px;background:var(--crema)}
 .qr img,.qr canvas{width:176px!important;height:176px!important}
 .qr-vacio{background:transparent;border:1px dashed var(--borde)}
 .qr-sin{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:8px;font-size:13px;color:var(--sobre-crema);text-align:center}
@@ -342,6 +345,13 @@ select.input option{background:var(--superficie);color:var(--texto)}
 .escala-ref{display:flex;justify-content:space-between;width:280px;max-width:100%;margin-top:6px;font-size:13px;color:var(--texto-3)}
 .item-comentario{padding-top:22px;border-top:1px solid var(--linea)}
 
+/* Entrada descargable */
+.entrada-img{display:block;width:auto;max-width:100%;max-height:60vh;margin:0 auto;border-radius:18px;background:#060504}
+
+/* Acceso al panel */
+.acceso{max-width:440px}
+.acceso-nota{margin-top:20px}
+
 /* Aviso breve y pie */
 .toast{position:fixed;left:50%;bottom:24px;z-index:60;max-width:calc(100% - 32px);padding:12px 20px;border-radius:999px;background:var(--crema);color:var(--sobre-crema);font-size:15px;opacity:0;pointer-events:none;transform:translate(-50%,8px);transition:opacity .2s,transform .2s}
 .toast.visible{opacity:1;transform:translate(-50%,0)}
@@ -380,7 +390,10 @@ const CONFIG = {
     'Dominio del tema de quienes dirigieron la actividad',
     'Organización: información previa, puntualidad y duración',
     'Instalaciones y recursos: espacio, equipamiento e insumos'
-  ]
+  ],
+  // Acceso al panel en el prototipo: huella SHA-256 de (sal + ':' + clave). La clave no se guarda en el código.
+  panelSal: 'eventos-gastronomia-maipu',
+  panelHuella: '940c383c45a764544aa0b50345cf802f222274a17f152f66fe18f445aacb70a6'
 };
 const LIBS = {
   xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
@@ -403,7 +416,11 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 const plural = (n, uno, varios) => n + ' ' + (n === 1 ? uno : varios);
 
 function isoDate(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-function diaRel(n){ const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + n); return isoDate(d); }
+function diaRel(n, dia){ // fecha relativa a hoy; avanza hasta el día indicado (1 = lunes) o, si no se indica, hasta un día hábil
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + n);
+  while (dia != null ? d.getDay() !== dia : (d.getDay() === 0 || d.getDay() === 6)) d.setDate(d.getDate() + 1);
+  return isoDate(d);
+}
 function fechaHora(f, h){ const [y,m,d] = f.split('-').map(Number); const [hh,mm] = (h || '00:00').split(':').map(Number); return new Date(y, m - 1, d, hh, mm); }
 function fechaDe(f){ return fechaHora(f, '00:00'); }
 function fLarga(f){ const d = fechaDe(f); return DIAS[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()]; }
@@ -421,6 +438,80 @@ const CLAVE = 'eventos-gastronomia-prototipo-v1';
 let S = null;
 let MODAL = null;
 const UI = { fechaFiltro: 'todas', recienReservada: null, gracias: null, misTab: null, panelEvento: null, resultadosEvento: null, recepcion: { busqueda: '', resultado: null }, camara: null, flujo: null };
+
+/* ===================== Acceso al panel (solo prototipo) =====================
+   Barrera para visitantes: la verificación ocurre en el navegador, así que no reemplaza
+   la protección del sistema real (Firebase Authentication y reglas de Firestore). */
+const CLAVE_PANEL = 'eventos-gastronomia-panel-abierto';
+let panelAbierto = false;
+try { panelAbierto = sessionStorage.getItem(CLAVE_PANEL) === '1'; } catch (e) {}
+function abrirPanel(){ panelAbierto = true; try { sessionStorage.setItem(CLAVE_PANEL, '1'); } catch (e) {} }
+function bloquearPanel(){ panelAbierto = false; try { sessionStorage.removeItem(CLAVE_PANEL); } catch (e) {} }
+const normalizarClave = s => String(s).trim().toLowerCase();
+
+function huella(texto){
+  const datos = new TextEncoder().encode(CONFIG.panelSal + ':' + texto);
+  const sutil = window.crypto && window.crypto.subtle;
+  if (sutil && typeof sutil.digest === 'function') {
+    return sutil.digest('SHA-256', datos)
+      .then(b => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join(''))
+      .catch(() => sha256Hex(datos));
+  }
+  return Promise.resolve(sha256Hex(datos));
+}
+/* SHA-256 de respaldo para navegadores sin crypto.subtle */
+function sha256Hex(bytes){
+  const K = [], H = [];
+  const frac = x => ((x - Math.floor(x)) * 4294967296) >>> 0;
+  for (let p = 2; K.length < 64; p++) {
+    let primo = true;
+    for (let d = 2; d * d <= p; d++) if (p % d === 0) { primo = false; break; }
+    if (!primo) continue;
+    if (H.length < 8) H.push(frac(Math.sqrt(p)));
+    K.push(frac(Math.cbrt(p)));
+  }
+  const largo = bytes.length;
+  const total = Math.ceil((largo + 9) / 64) * 64;
+  const m = new Uint8Array(total);
+  m.set(bytes);
+  m[largo] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(total - 8, Math.floor(largo / 0x20000000));
+  dv.setUint32(total - 4, (largo * 8) >>> 0);
+  const rot = (x, n) => (x >>> n) | (x << (32 - n));
+  const W = new Array(64);
+  for (let o = 0; o < total; o += 64) {
+    for (let i = 0; i < 64; i++) {
+      if (i < 16) { W[i] = dv.getUint32(o + i * 4); continue; }
+      const x = W[i - 15], y = W[i - 2];
+      W[i] = (W[i - 16] + (rot(x, 7) ^ rot(x, 18) ^ (x >>> 3)) + W[i - 7] + (rot(y, 17) ^ rot(y, 19) ^ (y >>> 10))) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) >>> 0;
+      const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) >>> 0; });
+  }
+  return H.map(v => v.toString(16).padStart(8, '0')).join('');
+}
+/* Para cambiar la clave: huellaPanel('nueva clave') en la consola y copiar el resultado en CONFIG.panelHuella */
+window.huellaPanel = clave => huella(normalizarClave(clave)).then(h => { console.log(h); return h; });
+
+function vistaAccesoPanel(){
+  return '<section class="contenedor seccion"><div class="acceso">'
+    + '<h1 class="titulo-pag">Panel de gestión</h1>'
+    + '<p class="lead">Acceso solo para el equipo del área de Gastronomía.</p>'
+    + '<form class="mt" data-form="panel" novalidate>'
+    + '<label class="campo"><span class="etq">Clave de acceso</span>'
+    + '<input class="input" type="password" name="clave" id="clave-panel" autocomplete="current-password" autocapitalize="off" spellcheck="false" aria-describedby="err-panel" data-enfoque>'
+    + '<span class="error" id="err-panel" role="alert" hidden></span></label>'
+    + '<button class="btn btn-principal btn-bloque" type="submit">Ingresar al panel</button>'
+    + '</form>'
+    + '<p class="nota acceso-nota">En el sistema definitivo, el ingreso será con el enlace enviado a un correo autorizado.</p>'
+    + '</div></section>';
+}
 
 function guardar(){ try { localStorage.setItem(CLAVE, JSON.stringify(S)); } catch (e) {} }
 function cargar(){
@@ -469,7 +560,7 @@ function plantilla(tipo, ev, r){
     case 'confirmacion': return { asunto: 'Reserva confirmada: ' + ev.titulo, bloques: [
       { p: 'Su reserva está confirmada.' },
       { datos: datosEv.concat([['Código', r.codigo]]) },
-      { p: 'Presente el código QR adjunto en la entrada. También está disponible en Mis reservas.' },
+      { p: 'Presente el código QR en el acceso. En Mis reservas puede descargar su entrada como imagen.' },
       { p: 'Si no puede asistir, anule la reserva para liberar el cupo.' },
       { boton: 'Ver mi reserva' } ] };
     case 'recordatorio': return { asunto: 'Recordatorio: ' + ev.titulo + ' es mañana', bloques: [
@@ -545,11 +636,11 @@ function sembrar(){
   S = { version: 1, eventos: [], reservas: [], respuestas: [], envios: [], perfiles: {}, sesion: null };
   const ahora = Date.now();
   const base = [
-    { id: 'e1', titulo: 'Taller de chocolatería: templado y bombones', descripcion: 'Práctica de templado de chocolate de cobertura, relleno de bombones con ganache y terminaciones básicas. Los insumos se entregan en el taller; se recomienda asistir con uniforme de cocina.', fecha: diaRel(-7), inicio: '15:00', termino: '17:30', lugar: 'Taller de pastelería', aforo: 20 },
+    { id: 'e1', titulo: 'Taller de chocolatería: templado y bombones', descripcion: 'Práctica de templado de chocolate de cobertura, relleno de bombones con ganache y terminaciones básicas. Los insumos se entregan en el taller; se recomienda asistir con uniforme de cocina.', fecha: diaRel(-9, 4), inicio: '15:00', termino: '17:30', lugar: 'Taller de pastelería', aforo: 20 },
     { id: 'e2', titulo: 'Charla: cocina chilena de temporada', descripcion: 'Productos de primavera de la zona central y su uso en preparaciones tradicionales, con una degustación breve al cierre.', fecha: diaRel(1), inicio: '18:30', termino: '20:30', lugar: 'Comedor del área', aforo: 25 },
-    { id: 'e3', titulo: 'Demostración: fermentos en cocina', descripcion: 'Masa madre, kombucha y encurtidos: principios, control de higiene y usos en una carta. Demostración con espacio para preguntas.', fecha: diaRel(9), inicio: '11:00', termino: '13:00', lugar: 'Taller de cocina 1', aforo: 20 },
-    { id: 'e4', titulo: 'Encuentro con egresados: emprender en gastronomía', descripcion: 'Tres egresados del área cuentan cómo partieron sus proyectos: inversión inicial, permisos y primeros aprendizajes. Conversación abierta al final.', fecha: diaRel(16), inicio: '17:00', termino: '18:30', lugar: 'Sala de demostraciones', aforo: 40 },
-    { id: 'e5', titulo: 'Taller de coctelería sin alcohol', descripcion: 'Técnicas de mezcla, jarabes y decoración para una carta de bebidas sin alcohol. Cupos limitados por estación de trabajo.', fecha: diaRel(23), inicio: '16:00', termino: '18:00', lugar: 'Taller de cocina 2', aforo: 16 }
+    { id: 'e3', titulo: 'Demostración: fermentos en cocina', descripcion: 'Masa madre, kombucha y encurtidos: principios, control de higiene y usos en una carta. Demostración con espacio para preguntas.', fecha: diaRel(7, 3), inicio: '11:00', termino: '13:00', lugar: 'Taller de cocina 1', aforo: 20 },
+    { id: 'e4', titulo: 'Encuentro con egresados: emprender en gastronomía', descripcion: 'Tres egresados del área cuentan cómo partieron sus proyectos: inversión inicial, permisos y primeros aprendizajes. Conversación abierta al final.', fecha: diaRel(14, 4), inicio: '17:00', termino: '18:30', lugar: 'Sala de demostraciones', aforo: 40 },
+    { id: 'e5', titulo: 'Taller de coctelería sin alcohol', descripcion: 'Técnicas de mezcla, jarabes y decoración para una carta de bebidas sin alcohol. Cupos limitados por estación de trabajo.', fecha: diaRel(21, 2), inicio: '16:00', termino: '18:00', lugar: 'Taller de cocina 2', aforo: 16 }
   ];
   base.forEach(e => S.eventos.push(Object.assign({ estado: 'publicado', cerrado: false, cerradoEn: null, recordatorioEnviado: false, creado: ahora - 20 * 864e5 }, e)));
   PERSONAS.forEach(p => { S.perfiles[correoDe(p)] = { nombre: p[0], perfil: p[1], carreraArea: p[2] }; });
@@ -681,7 +772,7 @@ function vistaReserva(id){
   const titulo = r.estado === 'anulada' ? 'Reserva anulada' : ev.estado === 'cancelado' ? 'Evento cancelado' : nueva ? 'Reserva confirmada' : 'Su reserva';
   const lead = r.estado === 'anulada' ? 'Esta reserva fue anulada y el cupo quedó disponible.'
     : ev.estado === 'cancelado' ? 'El evento fue cancelado y la reserva quedó sin efecto.'
-    : nueva ? 'Se envió la confirmación a <strong>' + esc(r.email) + '</strong>. Si no aparece en la bandeja de entrada, revise la carpeta de correo no deseado.'
+    : nueva ? 'En el sistema definitivo, la confirmación llegará a <strong>' + esc(r.email) + '</strong>. En este prototipo los correos no se envían.'
     : r.asistio ? 'Asistencia registrada a las ' + hora(new Date(r.asistenciaHora)) + '.'
     : 'Presente este código en la entrada del evento.';
   const puedeAnular = activa && !r.asistio && (est === 'abierto' || est === 'sin-cupos');
@@ -701,6 +792,7 @@ function vistaReserva(id){
     + '<dt>' + (r.perfil === 'Estudiante' ? 'Carrera' : 'Área') + '</dt><dd>' + esc(r.carreraArea) + '</dd>'
     + '</dl></div></div>'
     + '<div class="acciones">'
+    + (activa && est !== 'finalizado' ? '<button class="btn btn-principal" data-accion="descargar-entrada" data-id="' + r.id + '">Descargar entrada</button>' : '')
     + (activa && est !== 'finalizado' ? '<button class="btn" data-accion="calendario" data-id="' + r.id + '">Agregar al calendario</button>' : '')
     + '<a class="btn" href="#/mis-reservas">Ver mis reservas</a>'
     + (puedeAnular ? '<button class="btn" data-accion="anular" data-id="' + r.id + '">Anular reserva</button>' : '')
@@ -1040,7 +1132,7 @@ function confirmar(opciones, fn){ abrirModal(Object.assign({ tipo: 'confirmar', 
 function renderModal(){
   const raiz = document.getElementById('modal-raiz');
   if (!MODAL) { raiz.innerHTML = ''; document.body.style.overflow = ''; return; }
-  const contenido = { flujo: modalFlujo, evento: modalEvento, confirmar: modalConfirmar, envio: modalEnvio }[MODAL.tipo]();
+  const contenido = { flujo: modalFlujo, evento: modalEvento, confirmar: modalConfirmar, envio: modalEnvio, entrada: modalEntrada }[MODAL.tipo]();
   const ancho = MODAL.tipo === 'evento' || MODAL.tipo === 'envio';
   raiz.innerHTML = '<div class="modal-fondo" data-accion="fondo-modal"><div class="modal' + (ancho ? ' ancho' : '') + '" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">' + contenido + '</div></div>';
   document.body.style.overflow = 'hidden';
@@ -1172,6 +1264,145 @@ function descargar(contenido, nombre, tipo){
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   } catch (e) { toast('No fue posible descargar el archivo en esta vista.'); }
 }
+function descargarURL(url, nombre){
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* Entrada descargable: imagen 1080×1920 con los datos de la reserva y el QR */
+const FUENTE_SERIF = '"Bodoni Moda", "Bodoni Moda Variable", "Bodoni 72", Didot, "Times New Roman", serif';
+const FUENTE_SANS = 'Jost, Futura, "Avenir Next", "Segoe UI", system-ui, sans-serif';
+function cargarFuentesEntrada(){
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  const usos = ['500 50px ' + FUENTE_SERIF, '500 74px ' + FUENTE_SERIF, '400 38px ' + FUENTE_SANS, '500 40px ' + FUENTE_SANS, '600 58px ' + FUENTE_SANS];
+  const cargas = Promise.all(usos.map(f => document.fonts.load(f).catch(() => null)));
+  return Promise.race([cargas, new Promise(ok => setTimeout(ok, 2500))]);
+}
+function rectRedondeado(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function envolverTexto(ctx, texto, ancho, maxLineas){
+  const lineas = [];
+  let actual = '';
+  String(texto).split(/\s+/).filter(Boolean).forEach(p => {
+    const prueba = actual ? actual + ' ' + p : p;
+    if (!actual || ctx.measureText(prueba).width <= ancho) actual = prueba;
+    else { lineas.push(actual); actual = p; }
+  });
+  if (actual) lineas.push(actual);
+  if (lineas.length <= maxLineas) return lineas;
+  const corte = lineas.slice(0, maxLineas);
+  let ultima = corte[maxLineas - 1];
+  while (ultima.length > 1 && ctx.measureText(ultima + '…').width > ancho) ultima = ultima.slice(0, -1).trimEnd();
+  corte[maxLineas - 1] = ultima + '…';
+  return corte;
+}
+function textoEspaciado(ctx, texto, xCentro, y, espacio){
+  const letras = Array.from(texto);
+  const anchos = letras.map(c => ctx.measureText(c).width);
+  let x = xCentro - (anchos.reduce((a, b) => a + b, 0) + espacio * (letras.length - 1)) / 2;
+  ctx.textAlign = 'left';
+  letras.forEach((c, i) => { ctx.fillText(c, x, y); x += anchos[i] + espacio; });
+}
+function dibujarEntrada(r, ev){
+  const W = 1080, H = 1920, M = 48;
+  const tx = M, ty = M, tw = W - 2 * M, th = H - 2 * M;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const linea = (texto, fuente, color, x, y, ancho) => {
+    ctx.font = fuente; ctx.fillStyle = color; ctx.textAlign = 'left';
+    ctx.fillText(envolverTexto(ctx, texto, ancho, 1)[0] || '', x, y);
+  };
+
+  // Fondo y tarjeta con brillo ámbar
+  ctx.fillStyle = '#060504'; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  rectRedondeado(ctx, tx, ty, tw, th, 44);
+  ctx.fillStyle = '#100D0A'; ctx.fill();
+  ctx.clip();
+  const brillo = ctx.createRadialGradient(W * 0.86, ty, 0, W * 0.86, ty, 950);
+  brillo.addColorStop(0, 'rgba(233,162,59,0.16)');
+  brillo.addColorStop(1, 'rgba(233,162,59,0)');
+  ctx.fillStyle = brillo; ctx.fillRect(tx, ty, tw, th);
+  ctx.restore();
+  rectRedondeado(ctx, tx + 1, ty + 1, tw - 2, th - 2, 43);
+  ctx.strokeStyle = 'rgba(242,232,213,0.14)'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Datos del evento y de la persona
+  const X = tx + 72, ANCHO = tw - 144;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#E30513'; ctx.fillRect(X, ty + 90, 16, 16);
+  linea(CONFIG.sede, '500 30px ' + FUENTE_SANS, '#B7AC98', X + 32, ty + 106, ANCHO - 32);
+  linea(CONFIG.nombreSistema, '500 50px ' + FUENTE_SERIF, '#F2E8D5', X, ty + 176, ANCHO);
+  linea('Entrada personal', '500 32px ' + FUENTE_SANS, '#F4C25A', X, ty + 290, ANCHO);
+  ctx.font = '500 74px ' + FUENTE_SERIF; ctx.fillStyle = '#F2E8D5';
+  let y = ty + 384;
+  envolverTexto(ctx, ev.titulo, ANCHO, 3).forEach((l, i) => { if (i) y += 86; ctx.fillText(l, X, y); });
+  y += 92; linea(capital(fLarga(ev.fecha)), '500 40px ' + FUENTE_SANS, '#E9A23B', X, y, ANCHO);
+  y += 58; linea(horario(ev), '400 38px ' + FUENTE_SANS, '#F2E8D5', X, y, ANCHO);
+  y += 54; linea(ev.lugar, '400 38px ' + FUENTE_SANS, '#B7AC98', X, y, ANCHO);
+  y += 88; linea(r.nombre, '500 40px ' + FUENTE_SANS, '#F2E8D5', X, y, ANCHO);
+  y += 50; linea(r.perfil + ', ' + r.carreraArea, '400 32px ' + FUENTE_SANS, '#B7AC98', X, y, ANCHO);
+
+  // Corte del ticket
+  const sep = ty + 970;
+  ctx.save();
+  ctx.setLineDash([14, 12]);
+  ctx.strokeStyle = 'rgba(242,232,213,0.24)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(tx + 56, sep); ctx.lineTo(tx + tw - 56, sep); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#060504';
+  [tx, tx + tw].forEach(cx => { ctx.beginPath(); ctx.arc(cx, sep, 34, 0, Math.PI * 2); ctx.fill(); });
+
+  // QR sobre fondo crema, con margen suficiente para leerlo
+  const lado = 420, margen = 60, caja = lado + 2 * margen;
+  const cx = (W - caja) / 2, cy = sep + 64;
+  rectRedondeado(ctx, cx, cy, caja, caja, 36);
+  ctx.fillStyle = '#F2E8D5'; ctx.fill();
+  const tmp = document.createElement('div');
+  new QRCode(tmp, { text: r.codigo, width: lado, height: lado, colorDark: '#16110A', colorLight: '#F2E8D5', correctLevel: QRCode.CorrectLevel.M });
+  const qr = tmp.querySelector('canvas');
+  if (!qr) throw new Error('QR no disponible');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(qr, cx + margen, cy + margen, lado, lado);
+
+  ctx.font = '600 58px ' + FUENTE_SANS; ctx.fillStyle = '#F4C25A';
+  textoEspaciado(ctx, r.codigo, W / 2, cy + caja + 92, 10);
+  ctx.font = '400 28px ' + FUENTE_SANS; ctx.fillStyle = '#B7AC98'; ctx.textAlign = 'center';
+  ctx.fillText('Presente esta entrada en el acceso al evento.', W / 2, cy + caja + 162);
+  ctx.fillText('Es personal e intransferible.', W / 2, cy + caja + 204);
+  return cv;
+}
+function descargarEntrada(id, boton){
+  const r = S.reservas.find(x => x.id === id);
+  const ev = r && evento(r.eventoId);
+  if (!r || !ev) return;
+  if (typeof QRCode !== 'function') { toast('No fue posible generar la entrada. Revise su conexión a internet.'); return; }
+  if (boton) boton.disabled = true;
+  cargarFuentesEntrada().then(() => {
+    const url = dibujarEntrada(r, ev).toDataURL('image/png');
+    const nombre = 'entrada-' + r.codigo + '.png';
+    const tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (tactil) abrirModal({ tipo: 'entrada', url, nombre, titulo: ev.titulo, codigo: r.codigo });
+    else { descargarURL(url, nombre); toast('Entrada descargada'); }
+  }).catch(() => toast('No fue posible generar la entrada.'))
+    .then(() => { if (boton) boton.disabled = false; });
+}
+function modalEntrada(){
+  return '<div class="modal-cab"><div><h2 id="modal-titulo">Su entrada</h2><p class="nota">Guárdela en el celular para presentarla en el acceso.</p></div>' + BTN_X + '</div>'
+    + '<img class="entrada-img" src="' + MODAL.url + '" alt="' + esc('Entrada para ' + MODAL.titulo + ', código ' + MODAL.codigo) + '">'
+    + '<div class="acciones"><a class="btn btn-principal btn-bloque" href="' + MODAL.url + '" download="' + esc(MODAL.nombre) + '">Descargar imagen</a></div>'
+    + '<p class="nota mt centro">También puede mantener presionada la imagen para guardarla en sus fotos.</p>';
+}
+
 function descargarICS(id){
   const r = S.reservas.find(x => x.id === id);
   if (!r) return;
@@ -1216,15 +1447,19 @@ function exportar(id){
 
 /* ===================== Render ===================== */
 function renderProto(enPanel){
-  document.getElementById('proto').innerHTML = '<div class="contenedor"><span>Prototipo con datos de ejemplo. Los correos no se envían: quedan registrados en el panel.</span>'
-    + '<span class="proto-der"><span class="proto-vista" role="group" aria-label="Ver como">'
-    + '<button data-accion="vista-participante" aria-pressed="' + !enPanel + '">Participante</button>'
-    + '<button data-accion="vista-panel" aria-pressed="' + enPanel + '">Panel</button></span>'
+  const vista = panelAbierto
+    ? '<span class="proto-vista" role="group" aria-label="Ver como">'
+      + '<button data-accion="vista-participante" aria-pressed="' + !enPanel + '">Participante</button>'
+      + '<button data-accion="vista-panel" aria-pressed="' + enPanel + '">Panel</button></span>'
+    : '';
+  document.getElementById('proto').innerHTML = '<div class="contenedor"><span>Prototipo con datos de ejemplo. '
+    + (panelAbierto ? 'Los correos no se envían: quedan registrados en el panel.' : 'Los correos no se envían realmente.') + '</span>'
+    + '<span class="proto-der">' + vista
     + '<button class="enlace" data-accion="restablecer">Restablecer datos</button></span></div>';
 }
 function renderCabecera(enPanel, r){
   let nav;
-  if (enPanel) nav = '<a href="#/">Ir al sitio de reservas</a>';
+  if (enPanel) nav = '<a href="#/">Ir al sitio de reservas</a>' + (panelAbierto ? '<button class="btn btn-chico" data-accion="bloquear-panel">Salir del panel</button>' : '');
   else {
     const enEventos = !r[0] || r[0] === 'evento';
     const enMias = r[0] === 'mis-reservas' || r[0] === 'reserva';
@@ -1258,7 +1493,7 @@ function render(){
   renderProto(enPanel);
   renderCabecera(enPanel, r);
   let html;
-  if (enPanel) html = vistaPanel(r[1] || 'eventos');
+  if (enPanel) html = panelAbierto ? vistaPanel(r[1] || 'eventos') : vistaAccesoPanel();
   else if (r[0] === 'evento') html = vistaDetalle(r[1]);
   else if (r[0] === 'reserva') html = vistaReserva(r[1]);
   else if (r[0] === 'mis-reservas') html = vistaMisReservas();
@@ -1268,7 +1503,11 @@ function render(){
   document.body.classList.toggle('con-barra', !enPanel && r[0] === 'evento' && !!(r[1] && evento(r[1])));
   renderPie(enPanel);
   dibujarQR();
-  if (enPanel && r[1] === 'recepcion') filtrarPersonas();
+  if (enPanel && panelAbierto && r[1] === 'recepcion') filtrarPersonas();
+}
+function enfocar(){
+  const el = document.querySelector('#app [data-enfoque]') || document.getElementById('app');
+  el.focus({ preventScroll: true });
 }
 let toastT;
 function toast(msg){
@@ -1283,6 +1522,7 @@ function toast(msg){
 const ACCIONES = {
   'vista-participante': () => ir('#/'),
   'vista-panel': () => ir('#/panel'),
+  'bloquear-panel': () => { detenerCamara(); bloquearPanel(); toast('Sesión del panel cerrada'); ir('#/'); },
   'restablecer': () => confirmar({ titulo: 'Restablecer datos de ejemplo', texto: 'Se borrarán los eventos, reservas y respuestas creados en esta prueba.', si: 'Restablecer' }, () => {
     detenerCamara();
     try { localStorage.removeItem(CLAVE); } catch (e) {}
@@ -1341,6 +1581,7 @@ const ACCIONES = {
     ir('#/reserva/' + r.id);
   },
   'calendario': id => descargarICS(id),
+  'descargar-entrada': (id, b) => descargarEntrada(id, b),
   'anular': id => {
     const r = S.reservas.find(x => x.id === id);
     if (!r) return;
@@ -1464,6 +1705,21 @@ const FORMULARIOS = {
     cerrarModal();
     render();
   },
+  panel: f => {
+    const input = f.elements.clave;
+    const boton = f.querySelector('button[type="submit"]');
+    const err = document.getElementById('err-panel');
+    const fallar = msg => { err.textContent = msg; err.hidden = false; input.setAttribute('aria-invalid', 'true'); boton.disabled = false; input.focus(); input.select(); };
+    if (!input.value.trim()) { fallar('Ingrese la clave de acceso.'); return; }
+    boton.disabled = true;
+    huella(normalizarClave(input.value)).then(h => {
+      if (h !== CONFIG.panelHuella) { fallar('La clave no es correcta.'); return; }
+      abrirPanel();
+      render();
+      window.scrollTo(0, 0);
+      enfocar();
+    });
+  },
   codigo: f => { registrarCodigo(f.elements.codigo.value); f.elements.codigo.value = ''; },
   encuesta: f => {
     const r = S.reservas.find(x => x.id === f.dataset.id);
@@ -1515,6 +1771,7 @@ document.addEventListener('input', e => {
   if (t.matches('[data-filtro="rec"]')) { UI.recepcion.busqueda = t.value; filtrarPersonas(); }
   if (t.matches('textarea[name="descripcion"]')) { const c = document.getElementById('contador-desc'); if (c) c.textContent = t.value.length + ' de 400'; }
   if (t.closest('form[data-form="encuesta"]')) { const err = document.getElementById('err-encuesta'); if (err) err.hidden = true; }
+  if (t.closest('form[data-form="panel"]')) { const err = document.getElementById('err-panel'); if (err) err.hidden = true; t.removeAttribute('aria-invalid'); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && MODAL) cerrarModal(); });
 window.addEventListener('hashchange', () => {
@@ -1527,13 +1784,14 @@ window.addEventListener('hashchange', () => {
   if (MODAL) cerrarModal();
   render();
   window.scrollTo(0, 0);
-  document.getElementById('app').focus({ preventScroll: true });
+  enfocar();
 });
 
 /* ===================== Inicio ===================== */
 if (!cargar()) { sembrar(); guardar(); }
 planificador();
 render();
+if (document.querySelector('#app [data-enfoque]')) enfocar();
 setInterval(() => {
   const escribiendo = document.activeElement && document.activeElement.matches('input, textarea, select');
   if (planificador() && !MODAL && !UI.camara && !escribiendo) render();
