@@ -17,11 +17,15 @@ export const CONFIG = {
   dominios: ['inacapmail.cl', 'inacap.cl'],
 
   carreras: ['Gastronomía Internacional', 'Administración Gastronómica Internacional', 'Turismo', 'Hotelería'],
+  // Opciones de área para el perfil Docente
+  areasDocentes: [
+    'Área Administración', 'Área Automatización, Electrónica y Robótica', 'Área Construcción', 'Área Diseño e Industria Digital',
+    'Área Energía', 'Área Gastronomía y Turismo', 'Área Informática, Ciberseguridad y Telecomunicaciones', 'Área Logística',
+    'Área Mecánica', 'Área Minería', 'Área Salud'
+  ],
+  // Opciones de área para el perfil Administrativo
   areas: [
-    'Área Administración', 'Área Automatización, Electrónica y Robótica', 'Área Construcción', 'Área de Operaciones',
-    'Área Diseño e Industria Digital', 'Área Energía', 'Área Gastronomía y Turismo', 'Área Informática, Ciberseguridad y Telecomunicaciones',
-    'Área Logística', 'Área Mecánica', 'Área Minería', 'Área Salud', 'Área Soporte', 'Biblioteca',
-    'DAC', 'DAE', 'DAF', 'Gestión Docente', 'Registro Curricular'
+    'Área de Operaciones', 'Área Soporte', 'Biblioteca', 'DAC', 'DAE', 'DAF', 'Gestión Docente', 'Registro Curricular'
   ],
   lugares: ['Taller de cocina 1', 'Taller de cocina 2', 'Taller de pastelería', 'Comedor del área', 'Sala de demostraciones'],
 

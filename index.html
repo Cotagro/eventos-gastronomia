@@ -432,7 +432,7 @@ function errorIngresoClave(e){
   return GENERICO;
 }
 function perfilPorDominio(e){ return e.endsWith('@inacapmail.cl') ? 'Estudiante' : 'Docente'; }
-function opcionesCA(perfil){ return (perfil === 'Estudiante' ? CONFIG.carreras : CONFIG.areas).map(x => '<option value="' + esc(x) + '">').join(''); }
+function opcionesCA(perfil){ return (perfil === 'Estudiante' ? CONFIG.carreras : perfil === 'Docente' ? (CONFIG.areasDocentes || CONFIG.areas) : CONFIG.areas).map(x => '<option value="' + esc(x) + '">').join(''); }
 const BTN_X = '<button class="x" type="button" data-accion="cerrar-modal" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 3l12 12M15 3L3 15" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>';
 const cargando = t => '<section class="contenedor seccion"><p class="cargando">' + esc(t || 'Cargando…') + '</p></section>';
 
