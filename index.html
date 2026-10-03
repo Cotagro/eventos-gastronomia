@@ -1214,7 +1214,7 @@ function modalFlujo(){
       + ['Estudiante', 'Docente', 'Administrativo'].map(p => '<button type="button" data-accion="perfil" data-id="' + p + '" aria-pressed="' + (f.perfilSel === p) + '">' + p + '</button>').join('')
       + '</div></div>'
       + '<label class="campo"><span class="etq" id="lbl-ca">' + (estudiante ? 'Carrera' : 'Área') + '</span>'
-      + '<input class="input" name="carreraArea" list="lista-ca" value="' + esc(f.carreraArea) + '" placeholder="' + (estudiante ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Docencia Gastronomía') + '">'
+      + '<input class="input" name="carreraArea" list="lista-ca" value="' + esc(f.carreraArea) + '" placeholder="' + (estudiante ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Área Gastronomía y Turismo') + '">'
       + '<datalist id="lista-ca">' + opcionesCA(f.perfilSel) + '</datalist></label>'
       + err
       + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Reservando…' : 'Confirmar reserva') + '</button></div></form>'
@@ -1250,7 +1250,7 @@ function modalFlujo(){
       + ['Estudiante', 'Docente', 'Administrativo'].map(p => '<button type="button" data-accion="perfil" data-id="' + p + '" aria-pressed="' + (f.perfilSel === p) + '">' + p + '</button>').join('')
       + '</div></div>'
       + '<label class="campo"><span class="etq" id="lbl-ca">' + (estudiante ? 'Carrera' : 'Área') + '</span>'
-      + '<input class="input" name="carreraArea" list="lista-ca" value="' + esc(f.carreraArea) + '" placeholder="' + (estudiante ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Docencia Gastronomía') + '">'
+      + '<input class="input" name="carreraArea" list="lista-ca" value="' + esc(f.carreraArea) + '" placeholder="' + (estudiante ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Área Gastronomía y Turismo') + '">'
       + '<datalist id="lista-ca">' + opcionesCA(f.perfilSel) + '</datalist></label>'
       + err
       + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Guardando…' : (ev ? 'Continuar' : 'Guardar datos')) + '</button></div></form>';
@@ -1643,7 +1643,7 @@ const ACCIONES = {
     const est = id === 'Estudiante';
     const lbl = document.getElementById('lbl-ca'); if (lbl) lbl.textContent = est ? 'Carrera' : 'Área';
     const dl = document.getElementById('lista-ca'); if (dl) dl.innerHTML = opcionesCA(id);
-    const inp = document.querySelector('input[name="carreraArea"]'); if (inp) inp.placeholder = est ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Docencia Gastronomía';
+    const inp = document.querySelector('input[name="carreraArea"]'); if (inp) inp.placeholder = est ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Área Gastronomía y Turismo';
   },
   'editar-datos': () => {
     const f = UI.flujo, p = S.perfil || {};

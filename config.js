@@ -17,7 +17,12 @@ export const CONFIG = {
   dominios: ['inacapmail.cl', 'inacap.cl'],
 
   carreras: ['Gastronomía Internacional', 'Administración Gastronómica Internacional', 'Turismo', 'Hotelería'],
-  areas: ['Docencia Gastronomía', 'Docencia Turismo y Hospitalidad', 'Dirección de Carrera', 'Asuntos Estudiantiles', 'Administración', 'Biblioteca'],
+  areas: [
+    'Área Administración', 'Área Automatización, Electrónica y Robótica', 'Área Construcción', 'Área de Operaciones',
+    'Área Diseño e Industria Digital', 'Área Energía', 'Área Gastronomía y Turismo', 'Área Informática, Ciberseguridad y Telecomunicaciones',
+    'Área Logística', 'Área Mecánica', 'Área Minería', 'Área Salud', 'Área Soporte', 'Biblioteca',
+    'DAC', 'DAE', 'DAF', 'Gestión Docente', 'Registro Curricular'
+  ],
   lugares: ['Taller de cocina 1', 'Taller de cocina 2', 'Taller de pastelería', 'Comedor del área', 'Sala de demostraciones'],
 
   // Las cinco preguntas de la encuesta (escala de 1 a 5). Si cambia el texto, mantenga cinco.
