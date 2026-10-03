@@ -431,7 +431,17 @@ function errorIngresoClave(e){
   if (c === 'auth/network-request-failed') return 'No hay conexión. Revise su internet e intente nuevamente.';
   return GENERICO;
 }
-function perfilPorDominio(e){ return e.endsWith('@inacapmail.cl') ? 'Estudiante' : 'Docente'; }
+function perfilPorDominio(e){ return e.endsWith('@inacap.cl') ? 'Docente' : 'Estudiante'; }
+// «@a, @b o @c»
+function listaDominios(conjuncion){
+  const l = CONFIG.dominios.map(d => '@' + d);
+  return l.length > 1 ? l.slice(0, -1).join(', ') + ' ' + conjuncion + ' ' + l[l.length - 1] : l.join('');
+}
+function errorCorreo(email){
+  const lista = listaDominios('o');
+  if (/@inacapmail\.cl$/.test(email) && !CONFIG.dominios.includes('inacapmail.cl')) return 'Los correos @inacapmail.cl no reciben los mensajes del sistema. Use su correo ' + lista + '.';
+  return 'Use un correo ' + lista + '.';
+}
 function opcionesCA(perfil){ return (perfil === 'Estudiante' ? CONFIG.carreras : perfil === 'Docente' ? (CONFIG.areasDocentes || CONFIG.areas) : CONFIG.areas).map(x => '<option value="' + esc(x) + '">').join(''); }
 const BTN_X = '<button class="x" type="button" data-accion="cerrar-modal" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 3l12 12M15 3L3 15" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>';
 const cargando = t => '<section class="contenedor seccion"><p class="cargando">' + esc(t || 'Cargando…') + '</p></section>';
@@ -568,7 +578,7 @@ function revisarEnlaceDeIngreso(){
 
 /* ===================== Vistas del participante ===================== */
 function vistaInicio(){
-  const hero = '<section class="hero"><h1>Reserve su cupo</h1><p>Talleres, charlas y demostraciones del ' + esc(CONFIG.area.toLowerCase()) + '. La reserva es personal y se hace con el correo institucional.</p></section>';
+  const hero = '<section class="hero"><h1>Reserve su cupo</h1><p>Talleres, charlas y demostraciones del ' + esc(CONFIG.area.toLowerCase()) + '. La reserva es personal y se hace con su correo.</p></section>';
   if (!S.eventosListos) return '<div class="contenedor">' + hero + '<p class="cargando">Cargando eventos…</p></div>';
   if (S.errorEventos) return '<div class="contenedor">' + hero + '<div class="vacio"><p>No fue posible cargar los eventos. Revise su conexión y vuelva a cargar la página.</p></div></div>';
   const proximos = S.eventos.filter(ev => ev.estado !== 'cancelado' && estadoEvento(ev) !== 'finalizado').sort(porInicio);
@@ -644,7 +654,7 @@ function vistaDetalle(id){
     + '<div class="fila"><span>Disponibilidad</span><span>' + disp + '</span></div>'
     + '<div class="barra" aria-hidden="true"><i style="width:' + pct + '%"></i></div>'
     + accion(' btn-bloque')
-    + '<p class="nota">' + (mia ? 'Código de reserva ' + esc(mia.codigo) + '.' : 'Se reserva con el correo institucional, sin contraseña.') + '</p>'
+    + '<p class="nota">' + (mia ? 'Código de reserva ' + esc(mia.codigo) + '.' : 'Se reserva con su correo, sin contraseña.') + '</p>'
     + (S.usuario ? '' : entradasDe(ev.id).map(x => '<p class="nota">Entrada guardada en este dispositivo para ' + esc(x.email) + '. <a href="#/entrada/' + x.reserva.id + '">Ver entrada</a></p>').join(''))
     + '</aside></div></div>'
     + '<div class="barra-movil"><p><strong>' + capital(fCorta(ev.fecha)) + ', ' + ev.inicio + '</strong>'
@@ -717,7 +727,7 @@ function paginaEntrada(r, ev, op){
 function vistaMisReservas(){
   if (!S.authListo) return cargando();
   if (!S.usuario) {
-    if (!S.entradas.length) return pedirIngreso('Mis reservas', 'Ingrese con su correo institucional para ver sus reservas.', 'mis-reservas');
+    if (!S.entradas.length) return pedirIngreso('Mis reservas', 'Ingrese con su correo para ver sus reservas.', 'mis-reservas');
     if (!S.eventosListos) return cargando('Cargando sus reservas…');
     const guardadas = S.entradas.map(x => ({ x, ev: evento(x.reserva.eventoId) })).filter(y => y.ev).sort((a, b) => porInicio(b.ev, a.ev));
     return '<section class="contenedor seccion">'
@@ -1181,11 +1191,11 @@ function modalFlujo(){
   const sub = ev ? esc(ev.titulo) + '<br>' + capital(fLarga(ev.fecha)) + ', de ' + ev.inicio + ' a ' + ev.termino : '';
   const cab = (titulo, s) => '<div class="modal-cab"><div><h2 id="modal-titulo">' + titulo + '</h2>' + (s ? '<p class="nota">' + s + '</p>' : '') + '</div>' + BTN_X + '</div>';
   const err = f.error ? '<span class="error" role="alert">' + esc(f.error) + '</span>' : '';
-  const dom = CONFIG.dominios.map(d => '@' + d).join(' y ');
+  const dom = listaDominios('y');
   if (f.paso === 'correo') {
-    return cab('Ingrese con su correo institucional', sub)
-      + '<form data-form="correo" novalidate><label class="campo"><span class="etq">Correo institucional</span>'
-      + '<input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre.apellido@inacapmail.cl" value="' + esc(f.email) + '"' + (f.error ? ' aria-invalid="true"' : '') + ' autofocus>' + err + '</label>'
+    return cab('Ingrese con su correo', sub)
+      + '<form data-form="correo" novalidate><label class="campo"><span class="etq">Correo</span>'
+      + '<input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre@gmail.com" value="' + esc(f.email) + '"' + (f.error ? ' aria-invalid="true"' : '') + ' autofocus>' + err + '</label>'
       + '<p class="nota">Le enviaremos un enlace de acceso a este correo; no se pide contraseña. Se aceptan correos ' + esc(dom) + '.</p>'
       + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Enviando…' : 'Enviar enlace de acceso') + '</button></div></form>'
       + '<p class="nota centro mt">¿Es parte del equipo del área y ya creó su contraseña? <button class="enlace" data-accion="usar-clave">Ingresar con contraseña</button></p>';
@@ -1193,7 +1203,7 @@ function modalFlujo(){
   if (f.paso === 'clave') {
     return cab('Ingreso del equipo', sub)
       + '<form data-form="clave" novalidate>'
-      + '<label class="campo"><span class="etq">Correo institucional</span><input class="input" type="email" name="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" value="' + esc(f.email) + '"' + (f.email ? '' : ' autofocus') + '></label>'
+      + '<label class="campo"><span class="etq">Correo</span><input class="input" type="email" name="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" value="' + esc(f.email) + '"' + (f.email ? '' : ' autofocus') + '></label>'
       + '<label class="campo"><span class="etq">Contraseña</span><input class="input" type="password" name="clave" autocomplete="current-password"' + (f.error ? ' aria-invalid="true"' : '') + (f.email ? ' autofocus' : '') + '>' + err + '</label>'
       + '<p class="nota">Si aún no tiene contraseña, ingrese con el enlace al correo y créela en el panel, con el botón «Mi contraseña».</p>'
       + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Ingresando…' : 'Ingresar') + '</button></div></form>'
@@ -1206,9 +1216,9 @@ function modalFlujo(){
       + (locales.length ? '<div class="aviso">En este dispositivo ya hay una entrada para este evento a nombre de ' + esc(locales[0].reserva.nombre) + '. <a href="#/entrada/' + locales[0].reserva.id + '">Ver entrada</a></div>' : '')
       + '<form data-form="reserva" novalidate>'
       + (S.usuario
-        ? '<div class="campo"><span class="etq">Correo institucional</span><p class="valor">' + esc(S.usuario.email) + '</p></div>'
-        : '<label class="campo"><span class="etq">Correo institucional</span><input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre.apellido@inacapmail.cl" value="' + esc(f.email) + '" autofocus>'
-          + '<span class="ayuda">Revise que esté bien escrito: ahí llegarán el código QR y la encuesta.</span></label>')
+        ? '<div class="campo"><span class="etq">Correo</span><p class="valor">' + esc(S.usuario.email) + '</p></div>'
+        : '<label class="campo"><span class="etq">Correo</span><input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre@gmail.com" value="' + esc(f.email) + '" autofocus>'
+          + '<span class="ayuda">Se aceptan correos ' + esc(dom) + '. Revise que esté bien escrito: ahí llegarán el código QR y la encuesta.</span></label>')
       + '<label class="campo"><span class="etq">Nombre y apellido</span><input class="input" name="nombre" autocomplete="name" value="' + esc(f.nombre) + '"' + (S.usuario ? ' autofocus' : '') + '></label>'
       + '<div class="campo"><span class="etq" id="lbl-perfil">Perfil</span><div class="segmento" role="group" aria-labelledby="lbl-perfil">'
       + ['Estudiante', 'Docente', 'Administrativo'].map(p => '<button type="button" data-accion="perfil" data-id="' + p + '" aria-pressed="' + (f.perfilSel === p) + '">' + p + '</button>').join('')
@@ -1317,7 +1327,7 @@ function modalClave(){
     + '<input type="email" name="usuario" autocomplete="username" value="' + esc(correo) + '" hidden>'
     + '<label class="campo"><span class="etq">Nueva contraseña</span><input class="input" type="password" name="clave" autocomplete="new-password" autofocus></label>'
     + '<label class="campo"><span class="etq">Repita la contraseña</span><input class="input" type="password" name="clave2" autocomplete="new-password"></label>'
-    + '<p class="nota">Use al menos 10 caracteres y no repita la contraseña de su correo institucional.</p>'
+    + '<p class="nota">Use al menos 10 caracteres y no repita la contraseña de su correo.</p>'
     + (MODAL.error ? '<p class="error" role="alert">' + esc(MODAL.error) + '</p>' : '')
     + '<div class="acciones acciones-fin"><button class="btn" type="button" data-accion="cerrar-modal">Cerrar</button><button class="btn btn-principal" type="submit"' + (MODAL.enviando ? ' disabled' : '') + '>' + (MODAL.enviando ? 'Guardando…' : 'Guardar contraseña') + '</button></div></form>';
 }
@@ -1730,7 +1740,7 @@ const FORMULARIOS = {
   correo: f => {
     const email = f.elements.email.value.trim().toLowerCase();
     UI.flujo.email = email;
-    if (!correoValido(email)) { UI.flujo.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
+    if (!correoValido(email)) { UI.flujo.error = errorCorreo(email); renderModal(); return; }
     enviarEnlace();
   },
   clave: async f => {
@@ -1738,7 +1748,7 @@ const FORMULARIOS = {
     const email = f.elements.email.value.trim().toLowerCase();
     const clave = f.elements.clave.value;
     fl.email = email;
-    if (!correoValido(email)) { fl.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
+    if (!correoValido(email)) { fl.error = errorCorreo(email); renderModal(); return; }
     if (!clave) { fl.error = 'Escriba su contraseña.'; renderModal(); return; }
     fl.enviando = true; fl.error = null; renderModal();
     try {
@@ -1781,7 +1791,7 @@ const FORMULARIOS = {
     fl.email = email;
     fl.nombre = f.elements.nombre.value.trim().replace(/\s+/g, ' ');
     fl.carreraArea = f.elements.carreraArea.value.trim();
-    if (!S.usuario && !correoValido(email)) { fl.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
+    if (!S.usuario && !correoValido(email)) { fl.error = errorCorreo(email); renderModal(); return; }
     if (fl.nombre.length < 3) { fl.error = 'Ingrese su nombre y apellido.'; renderModal(); return; }
     if (!fl.carreraArea) { fl.error = fl.perfilSel === 'Estudiante' ? 'Indique su carrera.' : 'Indique su área.'; renderModal(); return; }
     fl.enviando = true; fl.error = null; renderModal();

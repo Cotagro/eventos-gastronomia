@@ -14,7 +14,7 @@ export const CONFIG = {
   sede: 'INACAP Sede Maipú',
   area: 'Área de Gastronomía',
   correoSistema: 'eventos.gastronomia.maipu@gmail.com',   // solo se muestra en la página
-  dominios: ['inacapmail.cl', 'inacap.cl'],
+  dominios: ['gmail.com', 'hotmail.com', 'outlook.com', 'inacap.cl'],   // los correos @inacapmail.cl retienen los mensajes del sistema
 
   carreras: ['Gastronomía Internacional', 'Administración Gastronómica Internacional', 'Turismo', 'Hotelería'],
   // Opciones de área para el perfil Docente
