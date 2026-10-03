@@ -329,14 +329,15 @@ select.input option{background:var(--superficie);color:var(--texto)}
 /* Encuesta */
 .item{margin:0;padding:22px 0;border:0;border-top:1px solid var(--linea)}
 .item legend{float:left;width:100%;padding:0;font-size:17px}
-.escala{clear:both;display:flex;gap:10px;padding-top:14px}
+fieldset.item{min-width:0}
+.escala{clear:both;display:grid;grid-template-columns:repeat(7,minmax(0,48px));gap:8px;padding-top:14px}
 .escala label{position:relative;display:block}
 .escala input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.escala span{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid var(--borde);border-radius:50%;color:var(--texto-2);font-size:17px;transition:background-color .12s,border-color .12s,color .12s}
+.escala span{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;border:1px solid var(--borde);border-radius:50%;color:var(--texto-2);font-size:17px;transition:background-color .12s,border-color .12s,color .12s}
 .escala label:hover span{border-color:var(--caramelo);color:var(--texto)}
 .escala input:checked + span{background:var(--caramelo);border-color:var(--caramelo);color:var(--sobre-crema)}
 .escala input:focus-visible + span{outline:2px solid var(--caramelo);outline-offset:3px}
-.escala-ref{display:flex;justify-content:space-between;width:280px;max-width:100%;margin-top:6px;font-size:13px;color:var(--texto-3)}
+.escala-ref{display:flex;justify-content:space-between;width:100%;max-width:384px;margin-top:6px;font-size:13px;color:var(--texto-3)}
 .item-comentario{padding-top:22px;border-top:1px solid var(--linea)}
 
 /* Entrada descargable */
@@ -463,6 +464,7 @@ if (CONFIG.usarEmuladores) {
 }
 const apiFn = httpsCallable(funciones, 'api', { timeout: 120000 });
 const GENERICO = 'No fue posible completar la acción. Revise su conexión e intente nuevamente.';
+const NOTA_MAX = 7;   // la encuesta usa notas de 1 a 7, como en Chile
 async function api(accion, datos){
   try {
     const r = await apiFn(Object.assign({ accion }, datos || {}));
@@ -810,14 +812,14 @@ function filaEntradaLocal(x, ev){
 function formEncuesta(ev){
   const E = UI.encuesta;
   const items = CONFIG.preguntas.map((p, i) => '<fieldset class="item"><legend>' + esc(p) + '</legend><div class="escala">'
-    + [1,2,3,4,5].map(n => '<label><input type="radio" name="p' + i + '" value="' + n + '" aria-label="' + n + ' de 5"' + (E.valores[i] === n ? ' checked' : '') + '><span aria-hidden="true">' + n + '</span></label>').join('')
-    + '</div><div class="escala-ref" aria-hidden="true"><span>Muy insatisfactorio</span><span>Muy satisfactorio</span></div></fieldset>').join('');
+    + Array.from({ length: NOTA_MAX }, (_, k) => k + 1).map(n => '<label><input type="radio" name="p' + i + '" value="' + n + '" aria-label="Nota ' + n + ' de ' + NOTA_MAX + '"' + (E.valores[i] === n ? ' checked' : '') + '><span aria-hidden="true">' + n + '</span></label>').join('')
+    + '</div><div class="escala-ref" aria-hidden="true"><span>Muy deficiente</span><span>Excelente</span></div></fieldset>').join('');
   return '<section class="contenedor angosto seccion">'
     + (ev.fecha ? '<p class="detalle-fecha">' + capital(fLarga(ev.fecha)) + '</p>' : '')
     + '<h1 class="titulo-pag">' + esc(ev.titulo) + '</h1>'
-    + '<p class="lead">Encuesta de satisfacción. Sus respuestas son anónimas y toman menos de un minuto.</p>'
+    + '<p class="lead">Encuesta de satisfacción. Califique cada aspecto con una nota de 1 a 7. Sus respuestas son anónimas y toman menos de un minuto.</p>'
     + '<form class="mt" data-form="encuesta" novalidate>' + items
-    + '<label class="campo item-comentario"><span class="etq">Comentarios o sugerencias (opcional)</span><textarea class="input" name="comentario" maxlength="500">' + esc(E.comentario) + '</textarea></label>'
+    + '<label class="campo item-comentario"><span class="etq">¿Qué destacaría del evento y qué mejoraría? (opcional)</span><textarea class="input" name="comentario" maxlength="500">' + esc(E.comentario) + '</textarea></label>'
     + '<p class="error" id="err-encuesta" role="alert"' + (E.error ? '' : ' hidden') + '>' + esc(E.error || 'Responda los cinco aspectos para enviar la encuesta.') + '</p>'
     + '<div class="acciones"><button class="btn btn-principal" type="submit"' + (E.enviando ? ' disabled' : '') + '>' + (E.enviando ? 'Enviando…' : 'Enviar respuestas') + '</button></div>'
     + '</form></section>';
@@ -1086,11 +1088,11 @@ function panelResultados(){
     + '<div class="kpi"><b>' + rs.length + '</b><span>reservas, de ' + ev.aforo + ' cupos</span></div>'
     + '<div class="kpi"><b>' + pres + '</b><span>asistentes, ' + pct(pres, rs.length) + ' de las reservas</span></div>'
     + '<div class="kpi"><b>' + resp.length + '</b><span>respuestas, ' + pct(resp.length, pres) + ' de quienes asistieron</span></div>'
-    + '<div class="kpi"><b>' + dec(prom(0)) + '</b><span>satisfacción general, escala de 1 a 5</span></div>'
+    + '<div class="kpi"><b>' + dec(prom(0)) + '</b><span>satisfacción general, nota de 1 a 7</span></div>'
     + '</div>'
     + (resp.length
       ? '<h2 class="seccion-t">Promedio por aspecto</h2><div class="pregs">'
-        + CONFIG.preguntas.map((p, i) => { const v = prom(i); return '<div class="preg"><span>' + esc(p) + '</span><span class="preg-prom">' + dec(v) + '</span><div class="barra" aria-hidden="true"><i style="width:' + (v / 5 * 100).toFixed(1) + '%"></i></div></div>'; }).join('')
+        + CONFIG.preguntas.map((p, i) => { const v = prom(i); return '<div class="preg"><span>' + esc(p) + '</span><span class="preg-prom">' + dec(v) + '</span><div class="barra" aria-hidden="true"><i style="width:' + (v / NOTA_MAX * 100).toFixed(1) + '%"></i></div></div>'; }).join('')
         + '</div><h2 class="seccion-t">Comentarios</h2>'
         + (comentarios.length ? '<ul class="comentarios">' + comentarios.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul>' : '<p class="nota">Sin comentarios.</p>')
       : '<div class="vacio"><p>Aún no hay respuestas. La encuesta se envía al terminar el evento a quienes tienen asistencia registrada.</p></div>');

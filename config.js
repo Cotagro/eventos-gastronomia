@@ -29,13 +29,14 @@ export const CONFIG = {
   ],
   lugares: ['Taller de cocina 1', 'Taller de cocina 2', 'Taller de pastelería', 'Comedor del área', 'Sala de demostraciones'],
 
-  // Las cinco preguntas de la encuesta (escala de 1 a 5). Si cambia el texto, mantenga cinco.
+  // Las cinco preguntas de la encuesta, con nota de 1 a 7. Si cambia el texto, mantenga cinco.
+  // Además hay una pregunta abierta: «¿Qué destacaría del evento y qué mejoraría?».
   preguntas: [
-    'Satisfacción general con la actividad',
-    'Claridad y utilidad de los contenidos',
-    'Dominio del tema de quienes dirigieron la actividad',
-    'Organización: información previa, puntualidad y duración',
-    'Instalaciones y recursos: espacio, equipamiento e insumos'
+    'Satisfacción general con el evento',
+    'Calidad de las preparaciones, productos o técnicas presentadas',
+    'Dominio del tema de quienes dirigieron el evento',
+    'Aporte del evento a sus conocimientos gastronómicos',
+    'Ambiente y atención durante el evento'
   ],
 
   usarEmuladores: false   // solo para pruebas locales
