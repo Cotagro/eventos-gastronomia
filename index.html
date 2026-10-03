@@ -203,6 +203,8 @@ select.input option{background:var(--superficie);color:var(--texto)}
 .segmento button{flex:1 1 0;min-height:40px;padding:0 8px;border:0;border-radius:999px;background:transparent;color:var(--texto-2);font-size:15px;cursor:pointer}
 .segmento button:hover{color:var(--texto)}
 .segmento button[aria-pressed="true"]{background:var(--crema);color:var(--sobre-crema)}
+.ayuda{display:block;margin-top:6px;font-size:13px;color:var(--texto-3)}
+.valor{margin:0;font-size:16px;color:var(--texto)}
 .aviso{margin:16px 0;padding:14px 16px;border-radius:14px;background:var(--caramelo-tinte);font-size:14px;color:var(--texto)}
 .resumen{margin-bottom:16px;padding:16px 0;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea)}
 .resumen-titulo{margin-bottom:10px;font-family:var(--serif);font-size:21px;line-height:1.25}
@@ -228,7 +230,8 @@ select.input option{background:var(--superficie);color:var(--texto)}
 .tabs > [aria-current="page"],.tabs > [aria-pressed="true"]{color:var(--texto);border-bottom-color:var(--caramelo)}
 
 /* Panel */
-.panel-cab .titulo-pag{margin-bottom:12px}
+.panel-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;margin-bottom:12px}
+.panel-cab .titulo-pag{margin-bottom:0}
 .herr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
 .seccion-t{margin:40px 0 8px;font-size:22px}
 .tabla{width:100%;border-collapse:collapse;font-size:15px}
@@ -381,7 +384,7 @@ body.con-barra .pie{padding-bottom:112px}
 <script type="module" onerror="window.__eventosFalla()">
 import { CONFIG } from './config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-import { getAuth, connectAuthEmulator, onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getAuth, connectAuthEmulator, onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink, signInWithEmailAndPassword, updatePassword, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 
@@ -406,6 +409,12 @@ const plural = (n, uno, varios) => n + ' ' + (n === 1 ? uno : varios);
 const leerLocal = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const escribirLocal = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 const borrarLocal = k => { try { localStorage.removeItem(k); } catch (e) {} };
+function leerEntradas(){
+  try {
+    const v = JSON.parse(leerLocal('eventos-entradas') || '[]');
+    return Array.isArray(v) ? v.filter(x => x && x.reserva && x.reserva.id && x.reserva.eventoId) : [];
+  } catch (e) { return []; }
+}
 
 function fechaDe(f){ const [y, m, d] = f.split('-').map(Number); return new Date(y, m - 1, d); }
 function fLarga(f){ const d = fechaDe(f); return DIAS[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()]; }
@@ -414,6 +423,14 @@ function horario(ev){ return ev.inicio + ' a ' + ev.termino; }
 function hora(ms){ const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function fechaHoraTexto(ms){ const d = new Date(ms); return capital(DIAS_C[d.getDay()]) + ' ' + d.getDate() + ' ' + MESES_C[d.getMonth()] + ', ' + hora(ms); }
 function correoValido(e){ const m = /^[a-z0-9._%+-]+@([a-z0-9.-]+)$/.exec(e); return !!m && CONFIG.dominios.includes(m[1]); }
+function errorIngresoClave(e){
+  const c = String((e && e.code) || '');
+  if (['auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(c)) return 'Correo o contraseña incorrectos.';
+  if (c === 'auth/too-many-requests') return 'Hubo demasiados intentos. Espere unos minutos o ingrese con el enlace al correo.';
+  if (c === 'auth/user-disabled') return 'Este correo no tiene acceso al sistema.';
+  if (c === 'auth/network-request-failed') return 'No hay conexión. Revise su internet e intente nuevamente.';
+  return GENERICO;
+}
 function perfilPorDominio(e){ return e.endsWith('@inacapmail.cl') ? 'Estudiante' : 'Docente'; }
 function opcionesCA(perfil){ return (perfil === 'Estudiante' ? CONFIG.carreras : CONFIG.areas).map(x => '<option value="' + esc(x) + '">').join(''); }
 const BTN_X = '<button class="x" type="button" data-accion="cerrar-modal" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 3l12 12M15 3L3 15" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>';
@@ -453,7 +470,8 @@ async function api(accion, datos){
 const S = {
   eventos: [], eventosListos: false, errorEventos: false,
   authListo: false, usuario: null, cuentaLista: false, errorCuenta: null, cuentaMs: 0,
-  perfil: null, rol: null, reservas: []
+  perfil: null, rol: null, reservas: [],
+  entradas: leerEntradas()   // reservas hechas sin ingresar, guardadas en este dispositivo
 };
 const UI = {
   fechaFiltro: 'todas', flujo: null, misTab: null, recienReservada: null, encuesta: null, camara: null,
@@ -466,6 +484,17 @@ let MODAL = null;
 const evento = id => S.eventos.find(e => e.id === id);
 const reservaDe = id => S.reservas.find(r => r.eventoId === id && r.estado === 'confirmada');
 const reservaCualquiera = id => reservaDe(id) || S.reservas.find(r => r.eventoId === id);
+const entradaLocal = id => S.entradas.find(x => x.reserva.id === id);
+const entradasDe = eventoId => S.entradas.filter(x => x.reserva.eventoId === eventoId && x.reserva.estado === 'confirmada');
+function guardarEntradas(){ escribirLocal('eventos-entradas', JSON.stringify(S.entradas.slice(-30))); }
+function agregarEntrada(x){ S.entradas = S.entradas.filter(y => y.reserva.id !== x.reserva.id).concat(x); guardarEntradas(); }
+function datosEntrada(id){
+  if (String(id).startsWith('local:')) {
+    const x = entradaLocal(String(id).slice(6));
+    return { r: x && x.reserva.estado === 'confirmada' ? x.reserva : null, ev: x ? evento(x.reserva.eventoId) : null };
+  }
+  return { r: reservaDe(id), ev: evento(id) };
+}
 const porInicio = (a, b) => a.inicioMs - b.inicioMs;
 function estadoEvento(ev){
   if (ev.estado === 'cancelado') return 'cancelado';
@@ -503,7 +532,7 @@ function continuarIntencion(){
   if (!ev) return;
   if (reservaDe(id)) { ir('#/reserva/' + id); return; }
   if (estadoEvento(ev) !== 'abierto') { toast('Este evento ya no tiene reservas disponibles.'); return; }
-  abrirFlujo(S.perfil ? 'confirmar' : 'datos', id);
+  abrirReserva(id);
 }
 async function finalizarIngreso(email, enlace, volver){
   try {
@@ -616,6 +645,7 @@ function vistaDetalle(id){
     + '<div class="barra" aria-hidden="true"><i style="width:' + pct + '%"></i></div>'
     + accion(' btn-bloque')
     + '<p class="nota">' + (mia ? 'Código de reserva ' + esc(mia.codigo) + '.' : 'Se reserva con el correo institucional, sin contraseña.') + '</p>'
+    + (S.usuario ? '' : entradasDe(ev.id).map(x => '<p class="nota">Entrada guardada en este dispositivo para ' + esc(x.email) + '. <a href="#/entrada/' + x.reserva.id + '">Ver entrada</a></p>').join(''))
     + '</aside></div></div>'
     + '<div class="barra-movil"><p><strong>' + capital(fCorta(ev.fecha)) + ', ' + ev.inicio + '</strong>'
     + (est === 'cancelado' ? 'Evento cancelado' : plural(quedan, 'cupo disponible', 'cupos disponibles')) + '</p>'
@@ -629,18 +659,33 @@ function pedirIngreso(titulo, texto, volver){
 
 function vistaReserva(eventoId){
   if (!S.authListo) return cargando();
-  if (!S.usuario) return pedirIngreso('Su reserva', 'Ingrese con el correo con que hizo la reserva para ver el código.', 'reserva/' + eventoId);
+  if (!S.usuario) {
+    const locales = entradasDe(eventoId);
+    if (locales.length === 1) return S.eventosListos ? vistaEntrada(locales[0].reserva.id) : cargando('Cargando su reserva…');
+    return pedirIngreso('Su reserva', 'Ingrese con el correo con que hizo la reserva para ver el código.', 'reserva/' + eventoId);
+  }
   if (!S.cuentaLista || !S.eventosListos) return cargando('Cargando su reserva…');
   const ev = evento(eventoId);
   const r = reservaCualquiera(eventoId);
   if (!r || !ev) return vistaMensaje('Reserva no encontrada', 'Revise sus reservas vigentes en Mis reservas.');
+  return paginaEntrada(r, ev, { nueva: UI.recienReservada === eventoId, email: S.usuario.email, id: ev.id });
+}
+
+function vistaEntrada(reservaId){
+  if (!S.eventosListos) return cargando('Cargando su entrada…');
+  const x = entradaLocal(reservaId);
+  const ev = x ? evento(x.reserva.eventoId) : null;
+  if (!x || !ev) return vistaMensaje('Entrada no encontrada', 'Esta entrada no está guardada en este dispositivo. Búsquela en el correo de confirmación o ingrese a Mis reservas con su correo.');
+  return paginaEntrada(x.reserva, ev, { nueva: UI.recienReservada === reservaId, email: x.email, id: 'local:' + reservaId });
+}
+
+function paginaEntrada(r, ev, op){
   const est = estadoEvento(ev);
-  const nueva = UI.recienReservada === eventoId;
   const activa = r.estado === 'confirmada' && ev.estado !== 'cancelado';
-  const titulo = r.estado === 'anulada' ? 'Reserva anulada' : ev.estado === 'cancelado' ? 'Evento cancelado' : nueva ? 'Reserva confirmada' : 'Su reserva';
+  const titulo = r.estado === 'anulada' ? 'Reserva anulada' : ev.estado === 'cancelado' ? 'Evento cancelado' : op.nueva ? 'Reserva confirmada' : 'Su reserva';
   const lead = r.estado === 'anulada' ? 'Esta reserva fue anulada y el cupo quedó disponible.'
     : ev.estado === 'cancelado' ? 'El evento fue cancelado y la reserva quedó sin efecto.'
-    : nueva ? 'Se envió la confirmación a <strong>' + esc(S.usuario.email) + '</strong>. Si no aparece en la bandeja de entrada, revise la carpeta de correo no deseado.'
+    : op.nueva ? 'Su cupo está reservado. También enviamos el código QR a <strong>' + esc(op.email) + '</strong>; si no aparece en la bandeja de entrada, revise la carpeta de correo no deseado. Para tenerlo a mano, descargue su entrada.'
     : r.asistio ? 'Asistencia registrada a las ' + hora(r.asistenciaMs) + '.'
     : 'Presente este código en la entrada del evento.';
   const puedeAnular = activa && !r.asistio && (est === 'abierto' || est === 'sin-cupos');
@@ -659,18 +704,29 @@ function vistaReserva(eventoId){
     + '<dt>Lugar</dt><dd>' + esc(ev.lugar) + '</dd>'
     + '<dt>Nombre</dt><dd>' + esc(r.nombre) + '</dd>'
     + '<dt>' + (r.perfil === 'Estudiante' ? 'Carrera' : 'Área') + '</dt><dd>' + esc(r.carreraArea) + '</dd>'
+    + '<dt>Correo</dt><dd>' + esc(op.email) + '</dd>'
     + '</dl></div></div>'
     + '<div class="acciones">'
-    + (vigente ? '<button class="btn btn-principal" data-accion="descargar-entrada" data-id="' + ev.id + '">Descargar entrada</button>' : '')
-    + (vigente ? '<button class="btn" data-accion="calendario" data-id="' + ev.id + '">Agregar al calendario</button>' : '')
+    + (vigente ? '<button class="btn btn-principal" data-accion="descargar-entrada" data-id="' + esc(op.id) + '">Descargar entrada</button>' : '')
+    + (vigente ? '<button class="btn" data-accion="calendario" data-id="' + esc(op.id) + '">Agregar al calendario</button>' : '')
     + '<a class="btn" href="#/mis-reservas">Ver mis reservas</a>'
-    + (puedeAnular ? '<button class="btn" data-accion="anular" data-id="' + ev.id + '">Anular reserva</button>' : '')
+    + (puedeAnular ? '<button class="btn" data-accion="anular" data-id="' + esc(op.id) + '">Anular reserva</button>' : '')
     + '</div></section>';
 }
 
 function vistaMisReservas(){
   if (!S.authListo) return cargando();
-  if (!S.usuario) return pedirIngreso('Mis reservas', 'Ingrese con su correo institucional para ver sus reservas.', 'mis-reservas');
+  if (!S.usuario) {
+    if (!S.entradas.length) return pedirIngreso('Mis reservas', 'Ingrese con su correo institucional para ver sus reservas.', 'mis-reservas');
+    if (!S.eventosListos) return cargando('Cargando sus reservas…');
+    const guardadas = S.entradas.map(x => ({ x, ev: evento(x.reserva.eventoId) })).filter(y => y.ev).sort((a, b) => porInicio(b.ev, a.ev));
+    return '<section class="contenedor seccion">'
+      + '<h1 class="titulo-pag">Mis reservas</h1>'
+      + '<p class="lead">Estas son las entradas guardadas en este dispositivo. Para ver todas sus reservas desde cualquier computador o celular, ingrese con su correo.</p>'
+      + (guardadas.length ? '<ul class="lista mt">' + guardadas.map(y => filaEntradaLocal(y.x, y.ev)).join('') + '</ul>' : '')
+      + '<div class="acciones"><button class="btn btn-principal" data-accion="ingresar" data-id="mis-reservas">Ingresar con mi correo</button></div>'
+      + '</section>';
+  }
   if (!S.cuentaLista || !S.eventosListos) return cargando('Cargando sus reservas…');
   if (S.errorCuenta) return vistaMensaje('No fue posible cargar sus reservas', S.errorCuenta);
   const mias = S.reservas.map(r => ({ r, ev: evento(r.eventoId) })).filter(x => x.ev);
@@ -723,6 +779,23 @@ function filaReserva(r, ev){
     + '</li>';
 }
 
+function filaEntradaLocal(x, ev){
+  const r = x.reserva;
+  const d = fechaDe(ev.fecha);
+  const vigente = r.estado === 'confirmada' && ev.estado !== 'cancelado' && estadoEvento(ev) !== 'finalizado';
+  const chip = r.estado === 'anulada' ? '<span class="estado">Anulada</span>'
+    : ev.estado === 'cancelado' ? '<span class="estado alerta">Evento cancelado</span>'
+    : vigente ? '<span class="estado menta">Confirmada</span>' : '<span class="estado">Finalizado</span>';
+  return '<li class="ev">'
+    + '<div class="ev-fecha"><span class="ev-mes">' + MESES_C[d.getMonth()] + '</span><span class="ev-dia">' + d.getDate() + '</span></div>'
+    + '<div class="ev-cuerpo"><h3 class="ev-titulo"><a href="#/evento/' + ev.id + '">' + esc(ev.titulo) + '</a></h3>'
+    + '<p class="ev-meta">' + capital(DIAS[d.getDay()]) + ', de ' + ev.inicio + ' a ' + ev.termino + '</p>'
+    + '<p class="ev-meta">' + esc(r.nombre) + ', ' + esc(x.email) + '</p>'
+    + '<p class="ev-estado">' + chip + '</p></div>'
+    + (vigente ? '<div class="ev-accion"><a class="btn btn-chico" href="#/entrada/' + r.id + '">Ver entrada</a></div>' : '')
+    + '</li>';
+}
+
 /* ----- Encuesta ----- */
 function formEncuesta(ev){
   const E = UI.encuesta;
@@ -771,14 +844,14 @@ function vistaMensaje(titulo, texto){
 /* ===================== Panel ===================== */
 function vistaPanel(tab){
   if (!S.authListo) return cargando('Verificando su acceso…');
-  if (!S.usuario) return '<section class="contenedor seccion"><div class="acceso"><h1 class="titulo-pag">Panel de gestión</h1><p class="lead">Acceso solo para el equipo del ' + esc(CONFIG.area.toLowerCase()) + '. Ingrese con su correo autorizado.</p><div class="acciones"><button class="btn btn-principal" data-accion="ingresar" data-id="panel">Ingresar</button></div></div></section>';
+  if (!S.usuario) return '<section class="contenedor seccion"><div class="acceso"><h1 class="titulo-pag">Panel de gestión</h1><p class="lead">Acceso solo para el equipo del ' + esc(CONFIG.area.toLowerCase()) + '. Ingrese con su contraseña o con un enlace a su correo autorizado.</p><div class="acciones"><button class="btn btn-principal" data-accion="ingresar-clave" data-id="panel">Ingresar con contraseña</button><button class="btn" data-accion="ingresar" data-id="panel">Ingresar con enlace al correo</button></div></div></section>';
   if (!S.cuentaLista) return cargando('Verificando su acceso…');
   if (!S.rol) return '<section class="contenedor angosto seccion"><h1 class="titulo-pag">Sin acceso al panel</h1><p class="lead">El correo ' + esc(S.usuario.email) + ' no tiene acceso al panel. Si debería tenerlo, pida a la coordinación del área que lo agregue.</p><div class="acciones"><a class="btn" href="#/">Ir al sitio de reservas</a></div></section>';
   const tabs = S.rol === 'admin' ? [['eventos', 'Eventos'], ['recepcion', 'Recepción'], ['resultados', 'Resultados'], ['correos', 'Correos']] : [['recepcion', 'Recepción']];
   if (!tabs.some(t => t[0] === tab)) tab = tabs[0][0];
   const contenido = { eventos: panelEventos, recepcion: panelRecepcion, resultados: panelResultados, correos: panelCorreos }[tab]();
   return '<section class="contenedor seccion">'
-    + '<div class="panel-cab"><h1 class="titulo-pag">Panel de gestión</h1></div>'
+    + '<div class="panel-cab"><h1 class="titulo-pag">Panel de gestión</h1><button class="btn btn-chico" data-accion="mi-clave">Mi contraseña</button></div>'
     + '<nav class="tabs" aria-label="Secciones del panel">' + tabs.map(([k, v]) => '<a href="#/panel/' + k + '"' + (k === tab ? ' aria-current="page"' : '') + '>' + v + '</a>').join('') + '</nav>'
     + contenido + '</section>';
 }
@@ -1071,7 +1144,7 @@ function renderModal(){
   const raiz = document.getElementById('modal-raiz');
   document.body.classList.toggle('con-modal', !!MODAL);
   if (!MODAL) { raiz.innerHTML = ''; document.body.style.overflow = ''; return; }
-  const contenido = { flujo: modalFlujo, evento: modalEvento, confirmar: modalConfirmar, entrada: modalEntrada, aviso: modalAviso }[MODAL.tipo]();
+  const contenido = { flujo: modalFlujo, evento: modalEvento, confirmar: modalConfirmar, entrada: modalEntrada, aviso: modalAviso, clave: modalClave }[MODAL.tipo]();
   const ancho = MODAL.tipo === 'evento';
   raiz.innerHTML = '<div class="modal-fondo" data-accion="fondo-modal"><div class="modal' + (ancho ? ' ancho' : '') + '" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">' + contenido + '</div></div>';
   document.body.style.overflow = 'hidden';
@@ -1089,25 +1162,24 @@ function abrirFlujo(paso, eventoId, volver){
 function iniciarReserva(eventoId){
   const ev = evento(eventoId);
   if (!ev) return;
-  if (S.usuario) {
-    if (reservaDe(eventoId)) { ir('#/reserva/' + eventoId); return; }
-    if (estadoEvento(ev) !== 'abierto') { toast('Este evento no tiene reservas disponibles.'); return; }
-    if (!S.cuentaLista) { toast('Cargando su cuenta, intente en un momento.'); return; }
-    abrirFlujo(S.perfil ? 'confirmar' : 'datos', eventoId);
-    return;
-  }
+  if (S.usuario && reservaDe(eventoId)) { ir('#/reserva/' + eventoId); return; }
   if (estadoEvento(ev) !== 'abierto') { toast('Este evento no tiene reservas disponibles.'); return; }
-  escribirLocal('eventos-intencion', eventoId);
-  abrirFlujo('correo', eventoId);
+  if (S.usuario && !S.cuentaLista) { toast('Cargando su cuenta, intente en un momento.'); return; }
+  abrirReserva(eventoId);
+}
+function abrirReserva(eventoId){
+  const p = S.usuario ? S.perfil : null;
+  const email = S.usuario ? S.usuario.email : '';
+  UI.flujo = { paso: 'reserva', eventoId, volver: 'evento/' + eventoId, email, error: null, enviando: false,
+    perfilSel: p ? p.perfil : 'Estudiante', nombre: p ? p.nombre : '', carreraArea: p ? p.carreraArea : '' };
+  abrirModal({ tipo: 'flujo' });
 }
 
 function modalFlujo(){
   const f = UI.flujo;
   const ev = f.eventoId ? evento(f.eventoId) : null;
-  const pasos = ev ? { correo: 1, revisar: 1, 'confirmar-correo': 1, datos: 2, confirmar: 3 } : { correo: 1, revisar: 1, 'confirmar-correo': 1, datos: 2 };
-  const total = ev ? 3 : 1;
   const sub = ev ? esc(ev.titulo) + '<br>' + capital(fLarga(ev.fecha)) + ', de ' + ev.inicio + ' a ' + ev.termino : '';
-  const cab = (titulo, s) => '<div class="modal-cab"><div>' + (total > 1 ? '<p class="paso">Paso ' + pasos[f.paso] + ' de ' + total + '</p>' : '') + '<h2 id="modal-titulo">' + titulo + '</h2>' + (s ? '<p class="nota">' + s + '</p>' : '') + '</div>' + BTN_X + '</div>';
+  const cab = (titulo, s) => '<div class="modal-cab"><div><h2 id="modal-titulo">' + titulo + '</h2>' + (s ? '<p class="nota">' + s + '</p>' : '') + '</div>' + BTN_X + '</div>';
   const err = f.error ? '<span class="error" role="alert">' + esc(f.error) + '</span>' : '';
   const dom = CONFIG.dominios.map(d => '@' + d).join(' y ');
   if (f.paso === 'correo') {
@@ -1115,7 +1187,45 @@ function modalFlujo(){
       + '<form data-form="correo" novalidate><label class="campo"><span class="etq">Correo institucional</span>'
       + '<input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre.apellido@inacapmail.cl" value="' + esc(f.email) + '"' + (f.error ? ' aria-invalid="true"' : '') + ' autofocus>' + err + '</label>'
       + '<p class="nota">Le enviaremos un enlace de acceso a este correo; no se pide contraseña. Se aceptan correos ' + esc(dom) + '.</p>'
-      + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Enviando…' : 'Enviar enlace de acceso') + '</button></div></form>';
+      + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Enviando…' : 'Enviar enlace de acceso') + '</button></div></form>'
+      + '<p class="nota centro mt">¿Es parte del equipo del área y ya creó su contraseña? <button class="enlace" data-accion="usar-clave">Ingresar con contraseña</button></p>';
+  }
+  if (f.paso === 'clave') {
+    return cab('Ingreso del equipo', sub)
+      + '<form data-form="clave" novalidate>'
+      + '<label class="campo"><span class="etq">Correo institucional</span><input class="input" type="email" name="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" value="' + esc(f.email) + '"' + (f.email ? '' : ' autofocus') + '></label>'
+      + '<label class="campo"><span class="etq">Contraseña</span><input class="input" type="password" name="clave" autocomplete="current-password"' + (f.error ? ' aria-invalid="true"' : '') + (f.email ? ' autofocus' : '') + '>' + err + '</label>'
+      + '<p class="nota">Si aún no tiene contraseña, ingrese con el enlace al correo y créela en el panel, con el botón «Mi contraseña».</p>'
+      + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Ingresando…' : 'Ingresar') + '</button></div></form>'
+      + '<p class="centro mt"><button class="enlace" data-accion="usar-enlace">Ingresar con enlace al correo</button></p>';
+  }
+  if (f.paso === 'reserva') {
+    const estudiante = f.perfilSel === 'Estudiante';
+    const locales = S.usuario ? [] : entradasDe(f.eventoId);
+    return cab('Reserve su cupo', sub)
+      + (locales.length ? '<div class="aviso">En este dispositivo ya hay una entrada para este evento a nombre de ' + esc(locales[0].reserva.nombre) + '. <a href="#/entrada/' + locales[0].reserva.id + '">Ver entrada</a></div>' : '')
+      + '<form data-form="reserva" novalidate>'
+      + (S.usuario
+        ? '<div class="campo"><span class="etq">Correo institucional</span><p class="valor">' + esc(S.usuario.email) + '</p></div>'
+        : '<label class="campo"><span class="etq">Correo institucional</span><input class="input" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre.apellido@inacapmail.cl" value="' + esc(f.email) + '" autofocus>'
+          + '<span class="ayuda">Revise que esté bien escrito: ahí llegarán el código QR y la encuesta.</span></label>')
+      + '<label class="campo"><span class="etq">Nombre y apellido</span><input class="input" name="nombre" autocomplete="name" value="' + esc(f.nombre) + '"' + (S.usuario ? ' autofocus' : '') + '></label>'
+      + '<div class="campo"><span class="etq" id="lbl-perfil">Perfil</span><div class="segmento" role="group" aria-labelledby="lbl-perfil">'
+      + ['Estudiante', 'Docente', 'Administrativo'].map(p => '<button type="button" data-accion="perfil" data-id="' + p + '" aria-pressed="' + (f.perfilSel === p) + '">' + p + '</button>').join('')
+      + '</div></div>'
+      + '<label class="campo"><span class="etq" id="lbl-ca">' + (estudiante ? 'Carrera' : 'Área') + '</span>'
+      + '<input class="input" name="carreraArea" list="lista-ca" value="' + esc(f.carreraArea) + '" placeholder="' + (estudiante ? 'Por ejemplo, Gastronomía Internacional' : 'Por ejemplo, Docencia Gastronomía') + '">'
+      + '<datalist id="lista-ca">' + opcionesCA(f.perfilSel) + '</datalist></label>'
+      + err
+      + '<div class="acciones"><button class="btn btn-principal btn-bloque" type="submit"' + (f.enviando ? ' disabled' : '') + '>' + (f.enviando ? 'Reservando…' : 'Confirmar reserva') + '</button></div></form>'
+      + '<p class="nota mt">Los datos se usan solo para gestionar la reserva, registrar la asistencia y enviar la encuesta de satisfacción.</p>';
+  }
+  if (f.paso === 'repetida') {
+    return cab('Ya tiene una reserva', sub)
+      + '<p>El correo <strong>' + esc(f.email) + '</strong> ya tiene una reserva para este evento. Le reenviamos la confirmación con el código QR.</p>'
+      + '<div class="aviso">Si no aparece en unos minutos, revise la carpeta de correo no deseado (spam).</div>'
+      + '<div class="acciones"><button class="btn btn-principal btn-bloque" data-accion="cerrar-modal">Entendido</button></div>'
+      + '<p class="centro mt"><button class="enlace" data-accion="otra-reserva">Reservar con otro correo</button></p>';
   }
   if (f.paso === 'revisar') {
     return cab('Revise su correo', sub)
@@ -1198,6 +1308,18 @@ function modalAviso(){
   return '<div class="modal-cab"><div><h2 id="modal-titulo">' + esc(MODAL.titulo) + '</h2></div>' + BTN_X + '</div>'
     + '<p>' + esc(MODAL.texto) + '</p>'
     + '<div class="acciones acciones-fin"><button class="btn btn-principal" data-accion="cerrar-modal" autofocus>Entendido</button></div>';
+}
+function modalClave(){
+  const correo = S.usuario ? S.usuario.email : '';
+  return '<div class="modal-cab"><div><h2 id="modal-titulo">Mi contraseña</h2><p class="nota">' + esc(correo) + '</p></div>' + BTN_X + '</div>'
+    + '<p>Con una contraseña puede entrar al panel sin esperar el correo. Si la olvida, el enlace al correo sigue funcionando y desde aquí puede crear otra.</p>'
+    + '<form class="mt" data-form="mi-clave" novalidate>'
+    + '<input type="email" name="usuario" autocomplete="username" value="' + esc(correo) + '" hidden>'
+    + '<label class="campo"><span class="etq">Nueva contraseña</span><input class="input" type="password" name="clave" autocomplete="new-password" autofocus></label>'
+    + '<label class="campo"><span class="etq">Repita la contraseña</span><input class="input" type="password" name="clave2" autocomplete="new-password"></label>'
+    + '<p class="nota">Use al menos 10 caracteres y no repita la contraseña de su correo institucional.</p>'
+    + (MODAL.error ? '<p class="error" role="alert">' + esc(MODAL.error) + '</p>' : '')
+    + '<div class="acciones acciones-fin"><button class="btn" type="button" data-accion="cerrar-modal">Cerrar</button><button class="btn btn-principal" type="submit"' + (MODAL.enviando ? ' disabled' : '') + '>' + (MODAL.enviando ? 'Guardando…' : 'Guardar contraseña') + '</button></div></form>';
 }
 
 /* ===================== Archivos ===================== */
@@ -1321,9 +1443,21 @@ function dibujarEntrada(r, ev){
   ctx.fillText('Es personal e intransferible.', W / 2, cy + caja + 204);
   return cv;
 }
-function descargarEntrada(eventoId, boton){
-  const r = reservaDe(eventoId);
-  const ev = evento(eventoId);
+function anularLocal(reservaId){
+  const x = entradaLocal(reservaId);
+  const ev = x ? evento(x.reserva.eventoId) : null;
+  if (!x || !ev) return;
+  confirmar({ titulo: 'Anular reserva', texto: '¿Anular la reserva de ' + x.reserva.nombre + ' para «' + ev.titulo + '»? El cupo quedará disponible para otra persona.', si: 'Anular reserva' }, async () => {
+    await api('anularReserva', { reservaId, claveAnular: x.clave || '' });
+    x.reserva.estado = 'anulada';
+    guardarEntradas();
+    UI.recienReservada = null;
+    toast('Reserva anulada');
+    render();
+  });
+}
+function descargarEntrada(id, boton){
+  const { r, ev } = datosEntrada(id);
   if (!r || !ev) return;
   if (typeof QRCode !== 'function') { toast('No fue posible generar la entrada. Revise su conexión a internet.'); return; }
   if (boton) boton.disabled = true;
@@ -1343,9 +1477,8 @@ function modalEntrada(){
     + '<p class="nota mt centro">También puede mantener presionada la imagen para guardarla en sus fotos.</p>';
 }
 
-function descargarICS(eventoId){
-  const r = reservaDe(eventoId);
-  const ev = evento(eventoId);
+function descargarICS(id){
+  const { r, ev } = datosEntrada(id);
   if (!r || !ev) return;
   const utc = ms => { const d = new Date(ms); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + '00Z'; };
   const t = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
@@ -1394,7 +1527,7 @@ function renderCabecera(enPanel, r){
   if (enPanel) nav = '<a href="#/">Ir al sitio de reservas</a>' + sesion;
   else {
     const enEventos = !r[0] || r[0] === 'evento';
-    const enMias = r[0] === 'mis-reservas' || r[0] === 'reserva';
+    const enMias = r[0] === 'mis-reservas' || r[0] === 'reserva' || r[0] === 'entrada';
     nav = '<a href="#/"' + (enEventos ? ' aria-current="page"' : '') + '>Eventos</a>'
       + '<a href="#/mis-reservas"' + (enMias ? ' aria-current="page"' : '') + '>Mis reservas</a>'
       + (S.rol ? '<a href="#/panel">Panel</a>' : '')
@@ -1436,6 +1569,7 @@ function render(){
   if (enPanel) html = vistaPanel(r[1] || '');
   else if (r[0] === 'evento') html = vistaDetalle(r[1]);
   else if (r[0] === 'reserva') html = vistaReserva(r[1]);
+  else if (r[0] === 'entrada') html = vistaEntrada(r[1]);
   else if (r[0] === 'mis-reservas') html = vistaMisReservas();
   else if (r[0] === 'encuesta') html = vistaEncuestaToken(r[1] || '');
   else if (r[0] === 'encuesta-reserva') html = vistaEncuestaReserva(r[1] || '');
@@ -1499,6 +1633,10 @@ const ACCIONES = {
   'cerrar-modal': () => cerrarModal(),
   'reenviar-enlace': () => enviarEnlace(),
   'otro-correo': () => { UI.flujo.paso = 'correo'; UI.flujo.error = null; renderModal(); },
+  'usar-clave': () => { UI.flujo.paso = 'clave'; UI.flujo.error = null; renderModal(); },
+  'usar-enlace': () => { UI.flujo.paso = 'correo'; UI.flujo.error = null; renderModal(); },
+  'ingresar-clave': id => { borrarLocal('eventos-intencion'); abrirFlujo('clave', null, id || ruta().join('/')); },
+  'mi-clave': () => abrirModal({ tipo: 'clave', error: null, enviando: false }),
   'perfil': (id, b) => {
     UI.flujo.perfilSel = id;
     b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1525,9 +1663,11 @@ const ACCIONES = {
       ir('#/reserva/' + id);
     } catch (e) { f.enviando = false; f.error = e.message; if (UI.flujo === f) renderModal(); }
   },
+  'otra-reserva': () => { Object.assign(UI.flujo, { paso: 'reserva', email: '', nombre: '', carreraArea: '', error: null }); renderModal(); },
   'descargar-entrada': (id, b) => descargarEntrada(id, b),
   'calendario': id => descargarICS(id),
   'anular': id => {
+    if (String(id).startsWith('local:')) { anularLocal(String(id).slice(6)); return; }
     const ev = evento(id);
     if (!ev) return;
     confirmar({ titulo: 'Anular reserva', texto: '¿Anular la reserva para «' + ev.titulo + '»? El cupo quedará disponible para otra persona.', si: 'Anular reserva' }, async () => {
@@ -1592,6 +1732,78 @@ const FORMULARIOS = {
     UI.flujo.email = email;
     if (!correoValido(email)) { UI.flujo.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
     enviarEnlace();
+  },
+  clave: async f => {
+    const fl = UI.flujo;
+    const email = f.elements.email.value.trim().toLowerCase();
+    const clave = f.elements.clave.value;
+    fl.email = email;
+    if (!correoValido(email)) { fl.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
+    if (!clave) { fl.error = 'Escriba su contraseña.'; renderModal(); return; }
+    fl.enviando = true; fl.error = null; renderModal();
+    try {
+      await signInWithEmailAndPassword(auth, email, clave);
+      cerrarModal();
+      toast('Ingresó con ' + email);
+      render();
+      continuarIntencion();
+    } catch (e) {
+      fl.enviando = false;
+      fl.error = errorIngresoClave(e);
+      if (UI.flujo === fl) renderModal();
+    }
+  },
+  'mi-clave': async f => {
+    const m = MODAL;
+    const clave = f.elements.clave.value, clave2 = f.elements.clave2.value;
+    if (clave.length < 10) { m.error = 'La contraseña debe tener al menos 10 caracteres.'; renderModal(); return; }
+    if (clave.length > 100) { m.error = 'La contraseña puede tener hasta 100 caracteres.'; renderModal(); return; }
+    if (clave !== clave2) { m.error = 'Las contraseñas no coinciden.'; renderModal(); return; }
+    m.enviando = true; m.error = null; renderModal();
+    try {
+      await updatePassword(auth.currentUser, clave);
+      if (MODAL === m) cerrarModal();
+      toast('Contraseña guardada. La próxima vez puede ingresar con ella.');
+    } catch (e) {
+      const c = String((e && e.code) || '');
+      m.enviando = false;
+      m.error = c === 'auth/requires-recent-login'
+        ? 'Por seguridad, la contraseña se crea justo después de ingresar con el enlace al correo. Presione «Salir», vuelva a ingresar con el enlace y cree la contraseña de inmediato.'
+        : (c === 'auth/weak-password' || c === 'auth/password-does-not-meet-requirements') ? 'Elija una contraseña más segura, de al menos 10 caracteres.'
+        : c === 'auth/network-request-failed' ? 'No hay conexión. Revise su internet e intente nuevamente.'
+        : GENERICO;
+      if (MODAL === m) renderModal();
+    }
+  },
+  reserva: async f => {
+    const fl = UI.flujo;
+    const email = S.usuario ? S.usuario.email : f.elements.email.value.trim().toLowerCase();
+    fl.email = email;
+    fl.nombre = f.elements.nombre.value.trim().replace(/\s+/g, ' ');
+    fl.carreraArea = f.elements.carreraArea.value.trim();
+    if (!S.usuario && !correoValido(email)) { fl.error = 'Use un correo ' + CONFIG.dominios.map(d => '@' + d).join(' o ') + '.'; renderModal(); return; }
+    if (fl.nombre.length < 3) { fl.error = 'Ingrese su nombre y apellido.'; renderModal(); return; }
+    if (!fl.carreraArea) { fl.error = fl.perfilSel === 'Estudiante' ? 'Indique su carrera.' : 'Indique su área.'; renderModal(); return; }
+    fl.enviando = true; fl.error = null; renderModal();
+    try {
+      const datos = { eventoId: fl.eventoId, nombre: fl.nombre, perfil: fl.perfilSel, carreraArea: fl.carreraArea };
+      if (!S.usuario) datos.email = email;
+      const r = await api('reservar', datos);
+      const id = fl.eventoId;
+      if (r.repetida) { fl.enviando = false; fl.paso = 'repetida'; if (UI.flujo === fl) renderModal(); return; }
+      if (S.usuario) {
+        S.reservas = S.reservas.filter(x => x.eventoId !== id).concat(r.reserva);
+        S.perfil = { nombre: fl.nombre, perfil: fl.perfilSel, carreraArea: fl.carreraArea };
+        UI.recienReservada = r.nueva ? id : null;
+        cerrarModal();
+        ir('#/reserva/' + id);
+      } else {
+        agregarEntrada({ reserva: r.reserva, email, clave: r.claveAnular, guardadaMs: Date.now() });
+        UI.recienReservada = r.reserva.id;
+        cerrarModal();
+        ir('#/entrada/' + r.reserva.id);
+      }
+    } catch (e) { fl.enviando = false; fl.error = e.message; if (UI.flujo === fl) renderModal(); }
   },
   'confirmar-correo': f => {
     const fl = UI.flujo;
@@ -1718,7 +1930,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && MODAL && !
 window.addEventListener('hashchange', () => {
   detenerCamara();
   const r = ruta();
-  if (!(r[0] === 'reserva' && r[1] === UI.recienReservada)) UI.recienReservada = null;
+  if (!((r[0] === 'reserva' || r[0] === 'entrada') && r[1] === UI.recienReservada)) UI.recienReservada = null;
   if (r[0] === 'mis-reservas') UI.misTab = null;
   if (r[0] !== 'encuesta' && r[0] !== 'encuesta-reserva') UI.encuesta = null;
   UI.rec.resultado = null;
